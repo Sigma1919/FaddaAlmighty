@@ -21,15 +21,17 @@ export default function PlayerHand({
       <h3 className="text-lg font-bold mb-3 text-white">
         Player {playerId + 1} {isCurrentPlayer && '(Current Turn)'} - {cards.length} cards
       </h3>
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap gap-3" onClick={(e) => e.stopPropagation()}>
         {cards.length > 0 ? (
           cards.map((card, index) => (
-            <CardComponent
-              key={index}
-              color={card.m_color || card.color}
-              value={card.m_value !== undefined ? card.m_value : card.value}
-              onClick={() => onCardClick?.(index)}
-            />
+            <div key={index} onClick={(e) => e.stopPropagation()}>
+              <CardComponent
+                color={card.m_color || card.color}
+                value={card.m_value !== undefined ? card.m_value : card.value}
+                cardType={card.m_cardType || card.cardType || 'NUMBER'}
+                onClick={() => isCurrentPlayer && onCardClick?.(index)}
+              />
+            </div>
           ))
         ) : (
           <div className="text-green-400 font-bold text-lg">🎉 Winner!</div>

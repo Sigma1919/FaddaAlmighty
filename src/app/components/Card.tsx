@@ -26,9 +26,9 @@ export default function CardComponent({ color, value, cardType = 'NUMBER', onCli
     const specialCards: Record<string, string> = {
       'SKIP': '⏭️',
       'REVERSE': '🔄',
-      'DRAW_TWO': '📥',
-      'WILD': '🌈',
-      'WILD_DRAW_FOUR': '🎆',
+      'DRAW_TWO': '➕2️⃣',
+      'WILD': '😛',
+      'WILD_DRAW_FOUR': '😛😛😛😛',
     };
 
     if (type === 'NUMBER') {
@@ -56,9 +56,14 @@ export default function CardComponent({ color, value, cardType = 'NUMBER', onCli
   const emoji = getEmoji(cardType, value);
   const displayText = getDisplayText(cardType);
 
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    onClick?.();
+  };
+
   return (
     <button
-      onClick={onClick}
+      onClick={handleClick}
       className={`
         w-24 h-32 rounded-xl font-bold text-2xl cursor-pointer
         transition transform hover:scale-110 active:scale-95

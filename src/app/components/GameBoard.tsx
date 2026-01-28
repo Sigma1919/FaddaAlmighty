@@ -13,6 +13,8 @@ export default function GameBoard() {
   const [gameActive, setGameActive] = useState(false);
   const [playerCount, setPlayerCount] = useState(2);
   const [topDiscardCard, setTopDiscardCard] = useState<any>(null);
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [pendingWildCard, setPendingWildCard] = useState<any>(null);
 
   useEffect(() => {
     if (game) {
@@ -40,20 +42,124 @@ export default function GameBoard() {
     updateGameState();
   };
 
+  const canPlayCard = (card: any): boolean => {
+    // Wild cards can always be played
+    if (card.m_cardType === 'WILD' || card.m_cardType === 'WILD_DRAW_FOUR') {
+      return true;
+    }
+
+    // If no discard card yet, any card can be played
+    if (!topDiscardCard) {
+      return true;
+    }
+
+    // Check if same color
+    if ((card.m_color || card.color) === (topDiscardCard.m_color || topDiscardCard.color)) {
+      return true;
+    }
+
+    // Check if same number (only for number cards)
+    if ((card.m_cardType || card.cardType || 'NUMBER') === 'NUMBER') {
+      if ((card.m_value || card.value) === (topDiscardCard.m_value || topDiscardCard.value)) {
+        return true;
+      }
+    } else if ((topDiscardCard.m_cardType || topDiscardCard.cardType || 'NUMBER') !== 'NUMBER') {
+      // Special cards can match other special cards of same type
+      if ((card.m_cardType || card.cardType) === (topDiscardCard.m_cardType || topDiscardCard.cardType)) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
   const handlePlayCard = (cardIndex: number) => {
     if (game && gameActive) {
       const currentPlayer = game['players']?.[currentPlayerIndex];
       if (currentPlayer) {
+        const playerHand = currentPlayer.getHand?.();
+        const cardToPlay = playerHand?.[cardIndex];
+
+        // Check if card can be played
+        if (!canPlayCard(cardToPlay)) {
+          alert('Invalid move! Card color or number must match the top discard card.');
+          return;
+        }
+
         const playedCard = currentPlayer.playCard(cardIndex);
         // Track the played card as the top discard card
         if (playedCard) {
+          // If it's a WILD card, show color picker
+          if (playedCard.m_cardType === 'WILD' || playedCard.m_cardType === 'WILD_DRAW_FOUR') {
+            setPendingWildCard(playedCard);
+            setShowColorPicker(true);
+            return; // Don't advance turn yet
+          }
           setTopDiscardCard(playedCard);
         }
-        const nextIndex = (currentPlayerIndex + 1) % playerCount;
+
+        let nextIndex = (currentPlayerIndex + 1) % playerCount;
+        
+        // Handle DRAW_TWO
+        if (playedCard && game && playedCard.m_cardType === 'DRAW_TWO') {
+          const nextPlayer = game['players']?.[nextIndex];
+          
+          if (nextPlayer) {
+            for (let i = 0; i < 2; i++) {
+              const drawnCard = game['deck'].drawCard();
+              if (drawnCard) {
+                nextPlayer.drawCard(drawnCard);
+              }
+            }
+          }
+          
+          // Skip the next player's turn
+          nextIndex = (nextIndex + 1) % playerCount;
+        }
+
+        // Update the game object's internal state
+        if (game) {
+          game['currentPlayerIndex'] = nextIndex;
+        }
         setCurrentPlayerIndex(nextIndex);
         updateGameState();
       }
     }
+  };
+
+  const handleColorSelection = (color: Color) => {
+    if (!game) return;
+    
+    if (pendingWildCard) {
+      // Update the wild card's color
+      pendingWildCard.m_color = color;
+      setTopDiscardCard(pendingWildCard);
+    }
+    setShowColorPicker(false);
+
+    let nextIndex = (currentPlayerIndex + 1) % playerCount;
+
+    // Handle WILD_DRAW_FOUR
+    if (pendingWildCard && pendingWildCard.m_cardType === 'WILD_DRAW_FOUR') {
+      const nextPlayer = game['players']?.[nextIndex];
+      
+      if (nextPlayer) {
+        for (let i = 0; i < 4; i++) {
+          const drawnCard = game['deck'].drawCard();
+          if (drawnCard) {
+            nextPlayer.drawCard(drawnCard);
+          }
+        }
+      }
+      
+      // Skip the next player's turn
+      nextIndex = (nextIndex + 1) % playerCount;
+    }
+
+    setPendingWildCard(null);
+    game['currentPlayerIndex'] = nextIndex;
+    setCurrentPlayerIndex(nextIndex);
+    updateGameState();
   };
 
   const handleDrawCard = () => {
@@ -126,6 +232,7 @@ export default function GameBoard() {
               <CardComponent
                 color={topDiscardCard.m_color || topDiscardCard.color}
                 value={topDiscardCard.m_value !== undefined ? topDiscardCard.m_value : topDiscardCard.value}
+                cardType={topDiscardCard.m_cardType || topDiscardCard.cardType || 'NUMBER'}
               />
             ) : (
               <div className="w-28 h-40 bg-yellow-400 rounded-lg shadow-lg flex items-center justify-center">
@@ -137,15 +244,15 @@ export default function GameBoard() {
 
         {/* Players */}
         <div className="space-y-6">
-          {gameState?.players?.map((player: any, index: number) => (
+          {gameState?.players && (
             <PlayerHand
-              key={index}
-              playerId={index}
-              cards={player.getHand?.()}
-              isCurrentPlayer={index === currentPlayerIndex}
+              key={currentPlayerIndex}
+              playerId={currentPlayerIndex}
+              cards={gameState.players[currentPlayerIndex]?.getHand?.()}
+              isCurrentPlayer={true}
               onCardClick={(cardIndex) => handlePlayCard(cardIndex)}
             />
-          ))}
+          )}
         </div>
 
         {/* Game Over Check */}
@@ -159,6 +266,41 @@ export default function GameBoard() {
               >
                 Back to Menu
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Color Picker for WILD Cards */}
+        {showColorPicker && (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+            <div className="bg-gray-800 p-8 rounded-lg text-center">
+              <h2 className="text-3xl font-bold mb-6 text-white">Choose a Color</h2>
+              <div className="flex gap-4 justify-center flex-wrap">
+                <button
+                  onClick={() => handleColorSelection(Color.RED)}
+                  className="w-20 h-20 bg-red-600 rounded-lg hover:scale-110 transition font-bold text-white"
+                >
+                  RED
+                </button>
+                <button
+                  onClick={() => handleColorSelection(Color.GREEN)}
+                  className="w-20 h-20 bg-green-600 rounded-lg hover:scale-110 transition font-bold text-white"
+                >
+                  GREEN
+                </button>
+                <button
+                  onClick={() => handleColorSelection(Color.BLUE)}
+                  className="w-20 h-20 bg-blue-600 rounded-lg hover:scale-110 transition font-bold text-white"
+                >
+                  BLUE
+                </button>
+                <button
+                  onClick={() => handleColorSelection(Color.YELLOW)}
+                  className="w-20 h-20 bg-yellow-500 rounded-lg hover:scale-110 transition font-bold text-gray-900"
+                >
+                  YELLOW
+                </button>
+              </div>
             </div>
           </div>
         )}

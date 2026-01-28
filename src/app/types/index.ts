@@ -1,11 +1,14 @@
 import Color from "../enum/Color";
 
-export type PlayerType = {
-    id: number;
-    hand: CardType[];
-};
+export type CardType = 'NUMBER' | 'SKIP' | 'REVERSE' | 'DRAW_TWO' | 'WILD' | 'WILD_DRAW_FOUR';
 
-export type CardType = {
+export type CardDataType = {
     color: Color;
     value: number;
+    cardType?: CardType;
+};
+
+export type PlayerType = {
+    id: number;
+    hand: CardDataType[];
 };
